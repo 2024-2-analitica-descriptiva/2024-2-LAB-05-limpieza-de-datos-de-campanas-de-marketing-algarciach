@@ -49,8 +49,98 @@ def clean_campaign_data():
 
 
     """
+    import os
+    import zipfile
+    import glob
+    import pandas as pd
 
-    return
+    def load_data():
+        zip_files = glob.glob(f"./files/input/*.zip")
+
+        dataframes = []
+
+        for zip_file in zip_files:
+            with zipfile.ZipFile(zip_file, 'r') as z:
+                files = z.namelist()
+
+                for file in files:
+                    with z.open(file) as f:
+                        df = pd.read_csv(f)
+                        dataframes.append(df)
+
+        dataframe = pd.concat(dataframes, ignore_index=True)
+        return dataframe
+
+    def clean_data(dataframe):
+        dataframe = dataframe.copy()
+        dataframe.dropna(inplace=True)
+
+        dataframe = dataframe.drop(columns=["Unnamed: 0"])
+        
+        dataframe["job"] = dataframe["job"].str.replace(".", "")
+        dataframe["job"] = dataframe["job"].str.replace("-", "_")
+        dataframe["education"] = dataframe["education"].str.replace(".", "_")
+        dataframe["education"] = dataframe["education"].str.replace("unknown", "pd.NA")
+        dataframe["education"] = dataframe["education"].str.replace(".", "_")
+        dataframe["credit_default"] = dataframe["credit_default"].apply(lambda x: 1 if x == 'yes' else 0)
+        dataframe["mortgage"] = dataframe["mortgage"].apply(lambda x: 1 if x == 'yes' else 0)
+        dataframe["previous_outcome"] = dataframe["previous_outcome"].apply(lambda x: 1 if x == 'success' else 0)
+        dataframe["campaign_outcome"] = dataframe["campaign_outcome"].apply(lambda x: 1 if x == 'yes' else 0)
+        dataframe["month"] = dataframe["month"].map({
+                                                'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4,
+                                                'may': 5, 'jun': 6, 'jul': 7, 'aug': 8,
+                                                'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12
+                                                 })
+        dataframe["last_contact_date"] = pd.to_datetime(dataframe[["day", "month"]].assign(year=2022)).dt.strftime('%Y-%m-%d')
+
+        dataframe.drop_duplicates(inplace=True)
+
+        return dataframe
+    
+    def create_clientdf(df):
+        columns_client = [ "client_id", "age", "job", "marital", "education", "credit_default", "mortgage"]
+        client_dataframe = df[columns_client]
+
+        return client_dataframe
+
+    def create_campaigndf(df):
+        columns_campaign = [ "client_id", "number_contacts", "contact_duration", "previous_campaign_contacts", "previous_outcome", "campaign_outcome", "last_contact_date"]
+        campaign_dataframe = df[columns_campaign]
+
+        return campaign_dataframe
+
+    def create_economicsdf(df):
+        columns_economics = ["client_id", "cons_price_idx", "euribor_three_months"]
+        economics_dataframe = df[columns_economics]
+
+        return economics_dataframe
+
+    def save_data(df0, df1, df2):
+        if not os.path.exists("./files/output"):
+            os.makedirs("./files/output")
+    
+        df0.to_csv(
+        "./files/output/campaign.csv",
+        index=False
+        )
+        df1.to_csv(
+        "./files/output/client.csv",
+        index=False
+        )
+        df2.to_csv(
+        "./files/output/economics.csv",
+        index=False
+        )
+
+    def main():
+        dataframe = load_data()
+        dataframe  = clean_data(dataframe)
+        campaign_dataframe = create_campaigndf(dataframe)
+        client_dataframe = create_clientdf(dataframe)
+        economics_dataframe = create_economicsdf(dataframe)
+        save_data(campaign_dataframe,client_dataframe,economics_dataframe)
+
+    return main()
 
 
 if __name__ == "__main__":
